@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background: #f5f6f8;
+  color: #1f2430;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Gradient text (indigo→violet→teal, matches the platform) ─────────────── */
+.gradient-text {
+  background-image: linear-gradient(to right, #4f46e5, #7c3aed, #0d9488);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ── Top accent bar ──────────────────────────────────────────────────────── */
+.page-accent-bar {
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(to right, #6366f1, #8b5cf6, #14b8a6);
+}
+
+/* ── Card ────────────────────────────────────────────────────────────────── */
+.card {
+  background: #ffffff;
+  border: 1px solid #e7e9ee;
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-hover:hover {
+  border-color: #c7d2fe;
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.08);
+}
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fade-up 0.45s ease both; }
+.animate-fade-up-delay-1 { animation: fade-up 0.45s ease 0.07s both; }
+.animate-fade-up-delay-2 { animation: fade-up 0.45s ease 0.14s both; }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.animate-fade-in { animation: fade-in 0.35s ease both; }
+
+/* Live pulse dot */
+@keyframes live-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  70%  { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.live-dot { animation: live-pulse 1.8s infinite; }
+
+/* Indeterminate progress shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, rgba(99,102,241,0.15) 25%, rgba(124,58,237,0.5) 50%, rgba(99,102,241,0.15) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite linear;
+}
+
+/* Slim scrollbars */
+.slim-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.slim-scroll::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 999px; }
+.slim-scroll::-webkit-scrollbar-track { background: transparent; }
