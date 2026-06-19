@@ -8,7 +8,7 @@ import {
   Train, Car, Globe, Clock, ListChecks,
 } from 'lucide-react'
 import { STANDARDS, getStandard } from '@/lib/standards'
-import { encodeDocName, parseDocName, buildMetadata } from '@/lib/docname'
+import { encodeDocName, parseDocName } from '@/lib/docname'
 import {
   READINESS, OPEN_GAPS, TREND, SEVERITY, SYSTEMS, AV_OPERATORS, COLLAB, ATTENTION,
   SEED_ALERTS, ALERT_POOL, overallReadiness, totalGaps, band, sevMeta,
@@ -129,11 +129,13 @@ export default function Console() {
       const encoded = encodeDocName(selectedId, clause, file.name)
       setLocalDocs((prev) => [encoded, ...prev])
       try {
-        const text = await file.text().catch(() => '')
-        const blob = new Blob([buildMetadata(selectedId, clause, file.name) + text], { type: 'text/plain' })
+        // Send the raw file (PDF/DOCX/TXT) — the server extracts text and forwards.
         const form = new FormData()
-        form.append('file', blob, encoded)
-        await fetch('/api/graphrag/upload', { method: 'POST', body: form })
+        form.append('file', file, file.name)
+        form.append('std', selectedId)
+        form.append('clause', clause)
+        const res = await fetch('/api/graphrag/upload', { method: 'POST', body: form })
+        if (!res.ok) throw new Error(await res.text())
         pushEvent('transmit', `Transmitted to safety knowledge graph — ${file.name}`)
       } catch { pushEvent('error', `Upload failed — ${file.name}`) }
     }

@@ -1,15 +1,18 @@
 // Resolves where Sentinel sends evidence, and how it authenticates.
 //
-// To mirror the main app exactly (recommended), set:
+// RECOMMENDED (prod indexing via the ISO dashboard endpoints):
 //   UPSTREAM_API_URL = https://quanterra.eastus.cloudapp.azure.com/iso-man/api/graphrag
-// plus ONE of the credentials your logged-in browser sends:
-//   UPSTREAM_AUTH    = "Bearer eyJhbGciOi..."     (copy from a request's Authorization header)
-//   UPSTREAM_COOKIE  = "KEYCLOAK_SESSION=...; ..." (copy from a request's Cookie header)
+//   + a Keycloak service client (see lib/auth.ts):
+//       KEYCLOAK_BASE_URL, KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID, KEYCLOAK_CLIENT_SECRET
+//   The server mints a fresh bearer token per request — no cookie babysitting.
 //
-// Alternatively point straight at a reachable GraphRAG (e.g. ngrok):
-//   GRAPHRAG_API_URL = https://xxxx.ngrok-free.dev
+// Manual-credential fallbacks (short-lived):
+//   UPSTREAM_AUTH   = "Bearer eyJ..."        UPSTREAM_COOKIE = "kc_access=...; ..."
 //
-// Set none of the above → Demo mode (local simulation).
+// Direct GraphRAG (e.g. ngrok): GRAPHRAG_API_URL = https://xxxx.ngrok-free.dev
+// None set → Demo mode (local simulation).
+
+import { getBearer } from './auth'
 
 const clean = (v?: string) => v?.trim().replace(/\/$/, '') || ''
 
@@ -17,13 +20,19 @@ export const UPSTREAM = clean(process.env.UPSTREAM_API_URL)
 export const GRAPHRAG = clean(process.env.GRAPHRAG_API_URL)
 export const hasUpstream = !!(UPSTREAM || GRAPHRAG)
 
-// Headers forwarded on every upstream request: skip ngrok's interstitial, and
-// pass through whichever auth credential was configured so we look like the
-// logged-in browser to the main app's auth gate.
-export const fwdHeaders: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' }
-if (process.env.UPSTREAM_AUTH?.trim()) fwdHeaders['Authorization'] = process.env.UPSTREAM_AUTH.trim()
-if (process.env.UPSTREAM_COOKIE?.trim()) fwdHeaders['Cookie'] = process.env.UPSTREAM_COOKIE.trim()
+// Build per-request headers: ngrok-skip + auth. A freshly-minted service token
+// takes precedence; otherwise fall back to a manually supplied bearer/cookie.
+export async function buildHeaders(extra?: Record<string, string>): Promise<Record<string, string>> {
+  const h: Record<string, string> = { 'ngrok-skip-browser-warning': 'true', ...(extra || {}) }
+  const bearer = await getBearer()
+  if (bearer) h['Authorization'] = `Bearer ${bearer}`
+  else if (process.env.UPSTREAM_AUTH?.trim()) h['Authorization'] = process.env.UPSTREAM_AUTH.trim()
+  if (process.env.UPSTREAM_COOKIE?.trim()) h['Cookie'] = process.env.UPSTREAM_COOKIE.trim()
+  return h
+}
 
+// extract-text only exists on the prod Next app (UPSTREAM), not on raw GraphRAG.
+export const extractUrl = () => (UPSTREAM ? `${UPSTREAM}/extract-text` : null)
 export const docsUrl = () => (UPSTREAM ? `${UPSTREAM}/documents` : `${GRAPHRAG}/documents`)
 export const uploadUrl = () => (UPSTREAM ? `${UPSTREAM}/upload` : `${GRAPHRAG}/documents/upload`)
 export const indexStatusUrl = () => (UPSTREAM ? `${UPSTREAM}/index` : `${GRAPHRAG}/index/status`)

@@ -2,7 +2,14 @@
 // and evidence views look populated out of the box. Uploads append here and the
 // "re-index" is simulated. No external dependency.
 
-export type DemoDoc = { filename: string; size_bytes: number; modified_at: string }
+export type DemoDoc = {
+  filename: string
+  size_bytes: number
+  modified_at: string
+  status?: string
+  score?: number
+  summary?: string
+}
 
 type IndexState = 'idle' | 'running' | 'completed' | 'failed'
 
