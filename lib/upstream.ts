@@ -25,11 +25,23 @@ export const hasUpstream = !!(UPSTREAM || GRAPHRAG)
 export async function buildHeaders(extra?: Record<string, string>): Promise<Record<string, string>> {
   const h: Record<string, string> = { 'ngrok-skip-browser-warning': 'true', ...(extra || {}) }
   const bearer = await getBearer()
-  if (bearer) h['Authorization'] = `Bearer ${bearer}`
-  else if (process.env.UPSTREAM_AUTH?.trim()) h['Authorization'] = process.env.UPSTREAM_AUTH.trim()
+  if (bearer) {
+    // The prod /api/graphrag middleware authenticates via the kc_access cookie,
+    // not the Authorization header — so present the minted service token there.
+    h['Authorization'] = `Bearer ${bearer}`
+    h['Cookie'] = `kc_access=${bearer}`
+  } else if (process.env.UPSTREAM_AUTH?.trim()) {
+    h['Authorization'] = process.env.UPSTREAM_AUTH.trim()
+  }
+  // Explicit cookie (manual fallback) wins if provided.
   if (process.env.UPSTREAM_COOKIE?.trim()) h['Cookie'] = process.env.UPSTREAM_COOKIE.trim()
   return h
 }
+
+// The prod app API base (one level up from /graphrag) for standards + clauses.
+const appBase = () => (UPSTREAM ? UPSTREAM.replace(/\/graphrag$/, '') : '')
+export const standardsUrl = () => `${appBase()}/iso-standards`
+export const checklistUrl = (id: string) => `${appBase()}/checklist/${encodeURIComponent(id)}`
 
 // extract-text only exists on the prod Next app (UPSTREAM), not on raw GraphRAG.
 export const extractUrl = () => (UPSTREAM ? `${UPSTREAM}/extract-text` : null)
