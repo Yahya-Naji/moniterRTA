@@ -1,5 +1,8 @@
 import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
 import './globals.css'
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
 
 export const metadata: Metadata = {
   title: 'RTA Dubai · Safety Sentinel',
@@ -8,8 +11,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-[#f5f6f8] text-[#1f2430] font-sans antialiased">
+    <html lang="en" className={inter.variable}>
+      <body className="min-h-screen font-sans antialiased" style={{ fontFamily: 'var(--font-inter), system-ui, sans-serif' }}>
         {children}
       </body>
     </html>

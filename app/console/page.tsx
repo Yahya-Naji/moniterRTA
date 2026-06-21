@@ -10,7 +10,7 @@ import {
 import { parseDocName } from '@/lib/docname'
 import {
   TREND, SEVERITY, SYSTEMS, AV_OPERATORS, COLLAB, ATTENTION,
-  SEED_ALERTS, ALERT_POOL, totalGaps, band, sevMeta,
+  SEED_ALERTS, ALERT_POOL, band, sevMeta,
 } from '@/lib/mock'
 
 type Std = { id: string; code: string; full: string; color: string; clauseCount: number }
@@ -74,7 +74,6 @@ export default function Console() {
     } catch { /* ignore */ }
   }, [])
 
-  // Load standards + documents + seed notifications
   useEffect(() => {
     fetch('/api/standards', { cache: 'no-store' }).then((r) => r.json()).then((d) => {
       const list: Std[] = d.standards ?? []
@@ -85,7 +84,6 @@ export default function Console() {
     setNotes(SEED_ALERTS.map((a, i) => ({ id: uid(), at: Date.now() - (i + 1) * 600_000, title: a.title, body: a.body, sev: a.sev, read: false })))
   }, [refreshDocuments])
 
-  // Load clauses when the selected standard changes
   useEffect(() => {
     if (!selectedId) return
     let cancel = false
@@ -97,7 +95,6 @@ export default function Console() {
     return () => { cancel = true }
   }, [selectedId])
 
-  // Heartbeat + periodic alerts
   useEffect(() => {
     setLastSync(Date.now())
     const t = setInterval(() => { pushEvent('heartbeat', HEARTBEATS[Math.floor(Math.random() * HEARTBEATS.length)]); setLastSync(Date.now()) }, 5000)
@@ -111,7 +108,6 @@ export default function Console() {
     return () => clearInterval(t)
   }, [notify, pushEvent])
 
-  // Index documents by standard → clause
   const docIndex = useMemo(() => {
     const m: Record<string, { count: number; clauses: Record<string, string[]> }> = {}
     for (const name of documents) {
@@ -128,13 +124,11 @@ export default function Console() {
   const totalClauses = standards.reduce((n, s) => n + s.clauseCount, 0)
   const totalCovered = standards.reduce((n, s) => n + coveredOf(s.id), 0)
   const overallCoverage = totalClauses ? Math.round((totalCovered / totalClauses) * 100) : 0
-
   const sel = docIndex[selectedId] ?? { count: 0, clauses: {} }
   const docsForStd = sel.count
   const coveredClauses = Object.keys(sel.clauses).length
   const clauseTitle = (num: string) => clauses.find((c) => c.number === num)?.title || ''
 
-  // Upload
   const onUploadClick = (clause: string) => { activeClauseRef.current = clause; fileInputRef.current?.click() }
   const onFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const clause = activeClauseRef.current
@@ -146,9 +140,7 @@ export default function Console() {
     for (const file of files) {
       try {
         const form = new FormData()
-        form.append('file', file, file.name)
-        form.append('std', selectedId)
-        form.append('clause', clause)
+        form.append('file', file, file.name); form.append('std', selectedId); form.append('clause', clause)
         const res = await fetch('/api/graphrag/upload', { method: 'POST', body: form })
         if (!res.ok) throw new Error(await res.text())
         const data = await res.json().catch(() => ({}))
@@ -162,7 +154,6 @@ export default function Console() {
     pushEvent('index', `Evidence stored for ${standard.code} clause ${clause} — ready to re-index`)
   }
 
-  // (Re)index
   const stopPolling = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null } }
   useEffect(() => () => stopPolling(), [])
   const handleIndex = async () => {
@@ -188,23 +179,50 @@ export default function Console() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f6f8]">
-      <div className="page-accent-bar" />
+    <div className="flex min-h-screen">
       <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFilesSelected} />
       <ToastStack toasts={toasts} onClose={(id) => setToasts((p) => p.filter((t) => t.id !== id))} />
 
-      <header className="sticky top-0 z-30 border-b border-[#e7e9ee] bg-white/85 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
+      {/* ── Sidebar ──────────────────────────────────────────────────────── */}
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-gradient-to-b from-[#0e1424] to-[#0a0f1c] text-white lg:flex">
+        <div className="border-b border-white/10 px-5 py-5">
           <Link href="/" className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 shadow-md shadow-indigo-500/20"><ShieldCheck className="h-6 w-6 text-white" /></div>
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 shadow-lg shadow-indigo-900/40"><ShieldCheck className="h-5 w-5 text-white" /></div>
             <div className="leading-tight">
-              <p className="text-sm font-bold text-gray-900">RTA Dubai <span className="font-medium text-gray-400">·</span> <span className="gradient-text">Safety Sentinel</span></p>
-              <p className="text-xs text-gray-500">Safety Certification &amp; Autonomous Mobility Governance</p>
+              <p className="text-sm font-bold">Safety Sentinel</p>
+              <p className="text-[11px] text-white/50">RTA Dubai</p>
             </div>
           </Link>
+        </div>
+        <nav className="flex-1 space-y-1 px-3 py-4">
+          <p className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">Monitoring</p>
+          <button onClick={() => setTab('dashboard')} className={`nav-link w-full ${tab === 'dashboard' ? 'active' : ''}`}><LayoutDashboard className="h-4 w-4" /> Dashboard</button>
+          <button onClick={() => setTab('evidence')} className={`nav-link w-full ${tab === 'evidence' ? 'active' : ''}`}><FolderOpen className="h-4 w-4" /> Evidence Library</button>
+        </nav>
+        <div className="border-t border-white/10 px-5 py-4">
+          <div className="flex items-center gap-2"><span className="live-dot h-2 w-2 rounded-full bg-emerald-400" /><span className="text-xs font-medium text-white/70">Live · Monitoring</span></div>
+          <p className="mt-2 text-[11px] text-white/40">{documents.length} documents · {standards.length} standards</p>
+        </div>
+      </aside>
+
+      {/* ── Main ─────────────────────────────────────────────────────────── */}
+      <div className="min-w-0 flex-1" onClick={() => bellOpen && setBellOpen(false)}>
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#e7e9ee] bg-white/80 px-5 backdrop-blur-md lg:px-8">
           <div className="flex items-center gap-3">
-            <div className="hidden items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 sm:flex">
-              <span className="live-dot h-2.5 w-2.5 rounded-full bg-emerald-500" /><span className="text-xs font-medium text-emerald-700">Live · Continuous Compliance Monitoring</span>
+            <Link href="/" className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 lg:hidden"><ShieldCheck className="h-5 w-5 text-white" /></Link>
+            <div>
+              <h1 className="text-base font-bold text-gray-900">{tab === 'dashboard' ? 'Safety Governance Overview' : 'Evidence Library'}</h1>
+              <p className="hidden text-xs text-gray-400 sm:block">{tab === 'dashboard' ? 'Continuous certification readiness & assurance' : 'Indexed evidence by standard & clause'}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <div className="hidden items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 md:flex">
+              <span className="live-dot h-2.5 w-2.5 rounded-full bg-emerald-500" /><span className="text-xs font-medium text-emerald-700">Live</span>
+            </div>
+            {/* mobile tabs */}
+            <div className="flex gap-1 lg:hidden">
+              <button onClick={() => setTab('dashboard')} className={`rounded-lg p-2 ${tab === 'dashboard' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500'}`}><LayoutDashboard className="h-4 w-4" /></button>
+              <button onClick={() => setTab('evidence')} className={`rounded-lg p-2 ${tab === 'evidence' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500'}`}><FolderOpen className="h-4 w-4" /></button>
             </div>
             <div className="relative">
               <button onClick={() => { setBellOpen((o) => !o); setNotes((p) => p.map((n) => ({ ...n, read: true }))) }} className="relative grid h-9 w-9 place-items-center rounded-lg border border-[#e7e9ee] bg-white text-gray-600 transition hover:border-indigo-300 hover:text-indigo-600">
@@ -214,28 +232,21 @@ export default function Console() {
               {bellOpen && <NotificationPanel notes={notes} onClose={() => setBellOpen(false)} onClear={() => setNotes([])} />}
             </div>
             {tab === 'evidence' && (
-              <button onClick={handleIndex} disabled={indexState === 'running'} className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-60">
+              <button onClick={handleIndex} disabled={indexState === 'running'} className="btn-primary flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60">
                 {indexState === 'running' ? <><Loader2 className="h-4 w-4 animate-spin" /> Re-indexing…</> : <><Database className="h-4 w-4" /> Re-index</>}
               </button>
             )}
           </div>
-        </div>
-        <div className="mx-auto flex max-w-7xl gap-1 px-6">
-          <Tab active={tab === 'dashboard'} onClick={() => setTab('dashboard')} icon={<LayoutDashboard className="h-4 w-4" />} label="Dashboard" />
-          <Tab active={tab === 'evidence'} onClick={() => setTab('evidence')} icon={<FolderOpen className="h-4 w-4" />} label="Evidence Library" />
-        </div>
-      </header>
+        </header>
 
-      <main className="mx-auto max-w-7xl px-6 pb-16 pt-7" onClick={() => bellOpen && setBellOpen(false)}>
-        {tab === 'dashboard' ? (
-          <Dashboard standards={standards} coveredOf={coveredOf} docIndex={docIndex}
-            overall={overallCoverage} totalDocs={documents.length} totalCovered={totalCovered} lastSync={lastSync} feed={feed} />
-        ) : (
-          <Evidence standards={standards} standard={standard} selectedId={selectedId} setSelectedId={setSelectedId}
-            clauses={clauses} clausesLoading={clausesLoading} sel={sel} docsForStd={docsForStd} coveredClauses={coveredClauses}
-            clauseTitle={clauseTitle} uploadingClause={uploadingClause} onUploadClick={onUploadClick} feed={feed} lastSync={lastSync} />
-        )}
-      </main>
+        <main className="mx-auto max-w-6xl px-5 pb-16 pt-7 lg:px-8">
+          {tab === 'dashboard' ? (
+            <Dashboard standards={standards} coveredOf={coveredOf} docIndex={docIndex} overall={overallCoverage} totalDocs={documents.length} totalCovered={totalCovered} lastSync={lastSync} feed={feed} />
+          ) : (
+            <Evidence standards={standards} standard={standard} selectedId={selectedId} setSelectedId={setSelectedId} clauses={clauses} clausesLoading={clausesLoading} sel={sel} docsForStd={docsForStd} coveredClauses={coveredClauses} clauseTitle={clauseTitle} uploadingClause={uploadingClause} onUploadClick={onUploadClick} feed={feed} lastSync={lastSync} />
+          )}
+        </main>
+      </div>
     </div>
   )
 }
@@ -247,9 +258,8 @@ function Dashboard({ standards, coveredOf, docIndex, overall, totalDocs, totalCo
   return (
     <>
       <section className="animate-fade-up">
-        <p className="text-sm font-medium text-indigo-600">Safety Governance Overview</p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight text-gray-900">Certification readiness, <span className="gradient-text">continuously monitored.</span></h1>
-        <p className="mt-2 max-w-2xl text-sm text-gray-500">Live safety-assurance posture across RTA Dubai’s management-system standards — real evidence coverage from the knowledge graph, plus programme and operator readiness.</p>
+        <h2 className="text-2xl font-bold tracking-tight text-gray-900">Certification readiness, <span className="gradient-text">continuously monitored.</span></h2>
+        <p className="mt-1.5 max-w-2xl text-sm text-gray-500">Live safety-assurance posture across RTA Dubai’s management-system standards — real evidence coverage from the knowledge graph, plus programme and operator readiness.</p>
       </section>
 
       <section className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -295,7 +305,6 @@ function Dashboard({ standards, coveredOf, docIndex, overall, totalDocs, totalCo
         </div>
       </section>
 
-      {/* RTA programme context */}
       <section className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-5">
         <div className="card animate-fade-up-delay-1 p-5 lg:col-span-2">
           <p className="text-sm font-semibold text-gray-900">Safety Findings by Severity</p>
@@ -371,15 +380,14 @@ function Dashboard({ standards, coveredOf, docIndex, overall, totalDocs, totalCo
   )
 }
 
-/* ───────────── Evidence Library ───────────── */
+/* ───────────── Evidence ───────────── */
 function Evidence({ standards, standard, selectedId, setSelectedId, clauses, clausesLoading, sel, docsForStd, coveredClauses, clauseTitle, uploadingClause, onUploadClick, feed, lastSync }: any) {
   const groupedClauses = Object.keys(sel.clauses).sort()
   return (
     <>
       <section className="animate-fade-up">
-        <p className="text-sm font-medium text-indigo-600">Evidence Library</p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight text-gray-900">What’s indexed. <span className="gradient-text">And what to submit next.</span></h1>
-        <p className="mt-2 max-w-2xl text-sm text-gray-500">Browse the evidence already indexed in the knowledge graph by standard and clause, and submit new documents — they’re transmitted to the compliance engine and re-indexed.</p>
+        <h2 className="text-2xl font-bold tracking-tight text-gray-900">What’s indexed. <span className="gradient-text">And what to submit next.</span></h2>
+        <p className="mt-1.5 max-w-2xl text-sm text-gray-500">Browse evidence already indexed in the knowledge graph by standard and clause, and submit new documents — transmitted to the compliance engine and re-indexed.</p>
       </section>
 
       <section className="mt-5 flex flex-wrap gap-2">
@@ -445,9 +453,6 @@ function Evidence({ standards, standard, selectedId, setSelectedId, clauses, cla
 
 /* ───────────── Shared ───────────── */
 function Dot({ color }: { color: string }) { return <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} /> }
-function Tab({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
-  return <button onClick={onClick} className={['flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition', active ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-800'].join(' ')}>{icon}{label}</button>
-}
 function Kpi({ icon, label, value, hint, accent }: { icon: React.ReactNode; label: string; value: string; hint?: string; accent?: boolean }) {
   return (<div className="card card-hover p-4"><div className="flex items-center gap-2 text-gray-500"><span className={accent ? 'text-violet-500' : 'text-indigo-500'}>{icon}</span><span className="text-xs font-medium">{label}</span></div><p className={`mt-2 text-2xl font-bold ${accent ? 'gradient-text' : 'text-gray-900'}`}>{value}</p>{hint && <p className="mt-0.5 text-xs text-gray-400">{hint}</p>}</div>)
 }
